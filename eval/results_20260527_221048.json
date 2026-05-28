@@ -1,0 +1,92 @@
+{
+  "timestamp": "20260527_221048",
+  "base_url": "http://localhost:8000",
+  "metrics": {
+    "verdict_accuracy": 1.0,
+    "citation_relevance": 1.0,
+    "refusal_accuracy": 1.0,
+    "confidence_rate": 1.0,
+    "overall_score": 1.0
+  },
+  "results": [
+    {
+      "case_id": "v_01_denver_breakfast",
+      "type": "verdict",
+      "expected_verdict": "compliant",
+      "predicted_verdict": "compliant",
+      "verdict_match": true,
+      "citation_relevance": true,
+      "has_citations": true,
+      "confidence_not_low": true,
+      "confidence": "MEDIUM",
+      "cited_doc_ids": [
+        "TEP-002"
+      ]
+    },
+    {
+      "case_id": "v_02_chicago_alinea",
+      "type": "verdict",
+      "expected_verdict": "rejected",
+      "predicted_verdict": "rejected",
+      "verdict_match": true,
+      "citation_relevance": true,
+      "has_citations": true,
+      "confidence_not_low": true,
+      "confidence": "HIGH",
+      "cited_doc_ids": [
+        "TEP-002",
+        "TEP-002"
+      ]
+    },
+    {
+      "case_id": "v_03_austin_flight",
+      "type": "verdict",
+      "expected_verdict": "compliant",
+      "predicted_verdict": "compliant",
+      "verdict_match": true,
+      "citation_relevance": true,
+      "has_citations": true,
+      "confidence_not_low": true,
+      "confidence": "HIGH",
+      "cited_doc_ids": [
+        "TEP-005",
+        "TEP-005"
+      ]
+    },
+    {
+      "case_id": "qa_01_dinner_cap",
+      "type": "qa",
+      "question": "What is the dinner reimbursement cap per person, and does it change for high-cost cities?",
+      "expected_refuse": false,
+      "refused": false,
+      "refusal_match": true,
+      "citation_relevance": true,
+      "cited_doc_ids": [
+        "TEP-002"
+      ]
+    },
+    {
+      "case_id": "qa_02_international_approval",
+      "type": "qa",
+      "question": "Does international travel require VP approval? What counts as international?",
+      "expected_refuse": false,
+      "refused": false,
+      "refusal_match": true,
+      "citation_relevance": true,
+      "cited_doc_ids": [
+        "TEP-013",
+        "TEP-005"
+      ]
+    },
+    {
+      "case_id": "qa_03_out_of_scope",
+      "type": "qa",
+      "question": "What is the company's remote work and home office equipment reimbursement policy?",
+      "expected_refuse": true,
+      "refused": true,
+      "refusal_match": true,
+      "citation_relevance": true,
+      "cited_doc_ids": []
+    }
+  ]
+}

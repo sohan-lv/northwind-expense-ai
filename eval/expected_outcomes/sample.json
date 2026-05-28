@@ -1,0 +1,80 @@
+[
+  {
+    "id": "v_01_denver_breakfast",
+    "type": "verdict",
+    "description": "Breakfast at Snooze in Denver (Tier 2) — $22, well under $25 cap",
+    "employee": {
+      "employee_id": "NW-04821-eval",
+      "name": "Sarah Chen",
+      "grade": "5",
+      "department": "Logistics Ops",
+      "manager": "NW-03012",
+      "trip_purpose": "Quarterly client review with Mountain Freight Partners in Denver",
+      "trip_start": "2025-04-14",
+      "trip_end": "2025-04-16"
+    },
+    "receipt_path": "data/submissions/01_clean_denver/receipts/05_breakfast_snooze.pdf",
+    "expected_verdict": "compliant",
+    "expected_doc_ids": ["TEP-002", "TEP-003"]
+  },
+  {
+    "id": "v_02_chicago_alinea",
+    "type": "verdict",
+    "description": "Dinner at Alinea in Chicago (Tier 2) — $300+ per person, far exceeds $75 dinner cap",
+    "employee": {
+      "employee_id": "NW-05117-eval",
+      "name": "Priya Patel",
+      "grade": "4",
+      "department": "Logistics Ops",
+      "manager": "NW-03012",
+      "trip_purpose": "Vendor site visit at Midwest Distribution Center, Chicago",
+      "trip_start": "2025-05-06",
+      "trip_end": "2025-05-07"
+    },
+    "receipt_path": "data/submissions/03_dinner_over_cap/receipts/04_dinner_alinea.pdf",
+    "expected_verdict": "rejected",
+    "expected_doc_ids": ["TEP-002", "TEP-003", "TEP-004"]
+  },
+  {
+    "id": "v_03_austin_flight",
+    "type": "verdict",
+    "description": "Southwest Airlines flight to Austin — domestic airfare, grade 6, under approval threshold",
+    "employee": {
+      "employee_id": "NW-03488-eval",
+      "name": "James Walker",
+      "grade": "6",
+      "department": "Logistics Ops",
+      "manager": "NW-01104",
+      "trip_purpose": "Solo carrier research trip — meeting potential regional partners in Austin",
+      "trip_start": "2025-03-18",
+      "trip_end": "2025-03-20"
+    },
+    "receipt_path": "data/submissions/04_alcohol_solo_travel/receipts/01_southwest_flight.pdf",
+    "expected_verdict": "compliant",
+    "expected_doc_ids": ["TEP-005"]
+  },
+  {
+    "id": "qa_01_dinner_cap",
+    "type": "qa",
+    "description": "In-scope question about dinner reimbursement cap — should answer with TEP meal cap doc",
+    "question": "What is the dinner reimbursement cap per person, and does it change for high-cost cities?",
+    "expected_refuse": false,
+    "expected_doc_ids": ["TEP-002", "TEP-003", "TEP-004"]
+  },
+  {
+    "id": "qa_02_international_approval",
+    "type": "qa",
+    "description": "In-scope question about international travel approval — should answer with TEP-013",
+    "question": "Does international travel require VP approval? What counts as international?",
+    "expected_refuse": false,
+    "expected_doc_ids": ["TEP-013", "TEP-009"]
+  },
+  {
+    "id": "qa_03_out_of_scope",
+    "type": "qa",
+    "description": "Out-of-scope question about remote work policy — not in policy library, should refuse",
+    "question": "What is the company's remote work and home office equipment reimbursement policy?",
+    "expected_refuse": true,
+    "expected_doc_ids": []
+  }
+]
