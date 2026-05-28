@@ -24,10 +24,17 @@ TIMEOUT = 120.0
 PROJECT_ROOT = Path(__file__).parent.parent
 
 
+def build_url(base_url: str, path: str) -> str:
+    base = base_url.rstrip("/")
+    if not path.startswith("/"):
+        path = "/" + path
+    return base + path
+
+
 def run_verdict_case(client: httpx.Client, base_url: str, case: dict) -> dict:
     emp = case["employee"]
 
-    emp_resp = client.post(f"{base_url}/employees", json={
+    emp_resp = client.post(build_url(base_url, "/api/employees"), json={
         "employee_id": emp.get("employee_id"),
         "name": emp["name"],
         "grade": str(emp["grade"]),
@@ -40,7 +47,7 @@ def run_verdict_case(client: httpx.Client, base_url: str, case: dict) -> dict:
     emp_resp.raise_for_status()
     emp_id = emp_resp.json()["id"]
 
-    sub_resp = client.post(f"{base_url}/submissions", json={
+    sub_resp = client.post(build_url(base_url, "/api/submissions"), json={
         "employee_id": emp_id,
         "trip_purpose": emp.get("trip_purpose"),
         "trip_start": emp.get("trip_start"),
@@ -52,7 +59,7 @@ def run_verdict_case(client: httpx.Client, base_url: str, case: dict) -> dict:
     receipt_path = PROJECT_ROOT / case["receipt_path"]
     with open(receipt_path, "rb") as f:
         receipt_resp = client.post(
-            f"{base_url}/submissions/{sub_id}/receipts",
+            build_url(base_url, f"/api/submissions/{sub_id}/receipts"),
             files={"file": (receipt_path.name, f, "application/pdf")},
         )
     receipt_resp.raise_for_status()
@@ -88,7 +95,7 @@ def run_verdict_case(client: httpx.Client, base_url: str, case: dict) -> dict:
 
 
 def run_qa_case(client: httpx.Client, base_url: str, case: dict) -> dict:
-    resp = client.post(f"{base_url}/policy-qa", json={"question": case["question"]})
+    resp = client.post(build_url(base_url, "/api/policy-qa"), json={"question": case["question"]})
     resp.raise_for_status()
     data = resp.json()
 
