@@ -27,7 +27,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [filters, setFilters] = useState({ employee_id: '', status: '', date_from: '', date_to: '' })
 
-  const { data: employees = [] } = useQuery({
+  const { data: employees, error: empError } = useQuery({
     queryKey: ['employees'],
     queryFn: employeesApi.list,
   })
@@ -36,12 +36,20 @@ export default function Dashboard() {
     Object.entries(filters).filter(([, v]) => v !== '')
   )
 
-  const { data: submissions = [], isLoading, refetch } = useQuery({
+  const { data: submissions, isLoading, refetch, error: subsError } = useQuery({
     queryKey: ['submissions', activeFilters],
     queryFn: () => submissionsApi.list(activeFilters),
   })
 
+  console.log('submissions data:', submissions)
+  console.log('submissions type:', typeof submissions)
+  console.log('employees data:', employees)
+  console.log('employees type:', typeof employees)
+  console.log('subsError:', subsError)
+  console.log('empError:', empError)
+
   const submissionList = submissions || []
+  const employeeList = employees || []
   const stats = {
     total: submissionList.length,
     flagged: submissionList.filter(s => s.status === 'flagged').length,
@@ -93,7 +101,7 @@ export default function Dashboard() {
           className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[160px]"
         >
           <option value="">All employees</option>
-          {(employees || []).map(emp => (
+          {employeeList.map(emp => (
             <option key={emp.id} value={emp.id}>{emp.name}</option>
           ))}
         </select>
