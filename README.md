@@ -1,210 +1,221 @@
 # Northwind Expense AI
 
-AI-powered expense pre-review system for Northwind Logistics. Finance reviewers upload receipts; the system checks them against company travel & expense policies and returns structured verdicts with cited policy clauses. Human reviewer always makes the final call.
+An AI-powered expense pre-review system for Northwind Logistics. Finance reviewers upload receipts; the system checks them against company policies and returns structured verdicts with cited policy clauses. A human reviewer always makes the final call.
+
+**Live demo:** https://northwind-expense-ai-production.up.railway.app
 
 ---
 
-## Live Demo
+## What it does
 
-The system is deployed on Railway. Access the live UI at the Railway-provided URL.
+A reviewer opens the app, picks an employee, uploads receipts (PDF, image, or plain text), and gets back a verdict for each line item — compliant, flagged, or rejected — with the exact policy clause that supports it, quoted verbatim. They can override any verdict with a comment, and the full audit trail persists across restarts.
 
-- **Frontend**: React + Vite + Tailwind (Railway static deployment)
-- **Backend API**: FastAPI on Railway (auto-deployed from `Dockerfile`)
-- **Database**: PostgreSQL + pgvector on Railway
-- **File Storage**: Cloudflare R2
+There's also a policy Q&A interface: ask anything about the expense policies and get a cited answer. Ask something outside the policy library and the system declines rather than guessing.
 
 ---
 
-## Local Setup
+## Running locally
 
-### Prerequisites
-
-- Python 3.11+
-- Node 18+
-- Docker (optional — for local Postgres + pgvector)
-
-### Backend
+**Prerequisites:** Docker, an OpenAI API key, a Cloudflare R2 bucket.
 
 ```bash
-# Clone and install
-pip install -r requirements.txt
-
-# Configure environment
+git clone https://github.com/sohan-lv/northwind-expense-ai
+cd northwind-expense-ai
 cp .env.example .env
-# Fill in: DATABASE_URL, OPENAI_API_KEY, R2_* credentials
-
-# Start the API
-uvicorn backend.main:app --reload --port 8000
 ```
 
-On first startup, `backend/seed.py` runs automatically and:
-1. Runs `alembic upgrade head` to apply schema migrations
-2. Seeds 5 employees with trip context
-3. Indexes all 8 policy PDFs into pgvector (387 chunks, 16 documents)
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-# Open http://localhost:5173
+Fill in `.env`:
+```
+OPENAI_API_KEY=sk-...
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=northwind-expense-ai
+R2_ENDPOINT_URL=https://<account_id>.r2.cloudflarestorage.com
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/northwind
 ```
 
-### Docker Compose (local Postgres + app)
-
 ```bash
+# Start backend + Postgres
 docker-compose up --build
+
+# Start frontend (separate terminal)
+cd frontend && npm install && npm run dev
 ```
+
+- Frontend: http://localhost:5173
+- API: http://localhost:8000
+- API docs: http://localhost:8000/docs
+
+On first startup the system automatically seeds 5 employees and indexes all 30 policy documents into pgvector. Subsequent restarts skip indexing (idempotent check).
 
 ---
 
 ## Architecture
 
 ```
-Receipt PDF (upload)
-       │
-       ▼
- ┌─────────────────────────────────────────────────────┐
- │              FastAPI (async)                        │
- │                                                     │
- │  POST /submissions/{id}/receipts                    │
- │       │                                             │
- │       ├─ 1. Upload to Cloudflare R2                 │
- │       │                                             │
- │       ├─ 2. Extract (GPT-4o vision)                 │
- │       │      vendor, amount, category, line items   │
- │       │                                             │
- │       ├─ 3. Retrieve policy chunks (pgvector)       │
- │       │      category filter → cosine similarity    │
- │       │      + cross-reference resolution           │
- │       │                                             │
- │       └─ 4. Generate verdict (GPT-4o structured)    │
- │              compliant / flagged / rejected         │
- │              + cited_clauses with verbatim quotes   │
- └─────────────────────────────────────────────────────┘
-       │
-       ▼
-  PostgreSQL + pgvector
-  (employees, submissions, receipts, verdicts, overrides)
+Browser (React + Vite + Tailwind)
+│
+│  HTTPS REST (/api/*)
+▼
+FastAPI backend (Railway)
+│
+├── Receipt upload pipeline (per receipt):
+│     Upload to R2
+│       → Extract with GPT-4o vision
+│       → Classify category
+│       → Two-stage pgvector retrieval
+│           (category filter + cross-ref resolution)
+│       → Generate verdict (GPT-4o structured output)
+│       → Persist verdict + recompute submission status
+│
+├── Policy Q&A (LangGraph agent):
+│     Scope check → retrieve → answer / decline
+│
+└── Persistence:
+      PostgreSQL + pgvector (Railway)
+      Cloudflare R2 (receipt files)
 ```
 
-**Policy Q&A** uses a LangGraph agent with tool-calling to search all policy categories and synthesize answers. It refuses questions outside the policy library.
-
-### Key components
-
-| Component | File | Purpose |
-|---|---|---|
-| Extraction | `backend/core/extraction.py` | GPT-4o vision → structured receipt JSON |
-| Retrieval | `backend/core/retrieval.py` | pgvector cosine search + cross-ref resolution |
-| Verdict engine | `backend/core/verdict_engine.py` | GPT-4o structured output → verdict JSON |
-| Policy indexer | `backend/core/policy_index.py` | PDF → section-boundary chunks → embeddings |
-| Q&A agent | `backend/core/qa_agent.py` | LangGraph agent over policy chunks |
+**Tables:** `employees`, `submissions`, `receipts`, `verdicts`, `overrides` (insert-only audit log), `policy_chunks` (pgvector).
 
 ---
 
-## Design Decisions & Tradeoffs
+## Design decisions
 
-### Section-boundary chunking over fixed-token chunking
+### Chunking: section boundaries, not fixed tokens
 
-Policy documents have numbered sections (e.g., `3.1 Meal Caps`). Splitting at section boundaries keeps the semantics of each rule intact — a fixed 512-token window would split a table mid-row. The tradeoff is variable chunk size, but policy sections are short enough (<400 tokens typically) that this doesn't cause retrieval problems.
+Policy documents have numbered sections (`3.1 Meal Caps`, `4. Client Entertainment`). I chunk at section boundaries rather than every N tokens. The reason is concrete: fixed-token chunking splits the meal caps table mid-row, so the retrieval system sees `Breakfast | $25 | Lunch` without the dinner cap. That produces wrong verdicts.
 
-### Verdict pipeline is deterministic, not agentic
+The tradeoff is variable chunk size and an assumption that documents follow consistent structure. All 30 Northwind policy documents do — they share an identical template. I added a fallback to 600-token fixed chunks for any document where section boundaries aren't detected, which handles the edge case without breaking the happy path.
 
-The verdict path is a fixed sequence: extract → retrieve → generate. Using LangGraph here would add latency and unpredictability with no benefit — the policy documents are finite and the retrieval step already selects the right context. LangGraph is reserved for Q&A where iterative retrieval over multiple policy categories adds real value.
+### Verdict pipeline: deterministic, not agentic
 
-### Confidence derived from citation quality, not similarity score
+The verdict path is a fixed sequence: extract → retrieve → generate verdict. I considered making this a LangGraph agent that decides its own retrieval steps, but rejected it. Compliance tooling needs to be auditable — if a verdict is wrong, you need to know exactly why. An agent that varies its own reasoning steps makes that harder. The pipeline is also faster and cheaper per receipt.
 
-Raw cosine similarity between a receipt description and a policy chunk naturally scores 0.35–0.55 (different vocabulary). Using a 0.75 threshold would mark every verdict LOW. Instead:
-- `HIGH`: policy citations found + extraction was clean (`extraction_confidence=HIGH`) + verdict is unambiguous (`compliant` or `rejected`)
-- `MEDIUM`: citations found but receipt was unclear, or verdict is `flagged`
-- `LOW`: no relevant policy found
+LangGraph is used only for policy Q&A, where iterative tool use genuinely adds value: the agent checks scope, searches policies, follows cross-references, and decides when to decline. That's a case where the flexibility is worth it.
 
-### City tier uplift enforced in prompt, not code
+### Two-stage retrieval with category filtering
 
-Tier 1 / Tier 2 city classification is in the policy text (TEP-004 §3) and also embedded in the system prompt. Encoding it in code would create drift risk when the policy updates — the LLM reads the retrieved policy excerpt and the prompt's tier list is a safety net.
+Every receipt is classified into a category (meal, hotel, flight, etc.) before retrieval. The pgvector query filters by `policy_category` — a meal receipt only searches meal-related chunks, never vendor onboarding or HR policies. This matters because roughly 60% of the policy library is noise (IT policies, HR procedures, legal docs). Without filtering, noise chunks pollute the top-k results and the verdict engine reasons from irrelevant context.
 
-### INSERT-ONLY overrides table
+Stage 2 resolves cross-references automatically: if a retrieved chunk mentions `TEP-004 §3`, the system fetches that chunk and appends it to the context. This handles the common case where a policy section says "see X for the city tier list" without including the list itself.
 
-Human reviewer overrides are never updated or deleted. Each override is an immutable audit record. The UI shows the most recent override, but the full history is preserved in the `overrides` table for compliance audit.
+### GPT-4o for all receipt formats
+
+I use GPT-4o vision for PDFs and images, and GPT-4o text for plain-text receipts. One model, one API, handles all three formats. The alternative was a separate OCR pipeline (Tesseract or similar) feeding into a text model — more complexity, more failure surface, and worse results on printed receipts with unusual layouts. The tradeoff is higher cost per receipt (~$0.007 vs ~$0.001 for OCR), which I consider worth it at this scale.
+
+PDFs are converted to images (pdf2image + poppler) before passing to the vision API. Images are resized to max 2048px to stay within GPT-4o's vision limits.
+
+### Confidence: citation quality, not similarity score
+
+The first version used a 0.75 cosine similarity threshold to set confidence. Every receipt came back LOW confidence because cross-domain query-to-policy similarity naturally scores 0.35–0.55. A receipt about "dinner at Franklin Barbecue" doesn't embed close to "sanctioned client entertainment involving alcohol requires..." even when the retrieval is correct.
+
+The current approach: HIGH confidence means citations were found AND extraction was clean AND the verdict is unambiguous (compliant or rejected). MEDIUM means something is uncertain — the receipt was unclear, or the verdict is flagged. LOW means no relevant policy was found at all. The raw similarity score is still stored in the database for the evaluation harness to measure retrieval quality independently.
+
+### Overrides are insert-only
+
+The `overrides` table is append-only. Original AI verdicts are never modified. Every override is a new row with the reviewer's comment, timestamp, and new verdict. The submission status reflects the most recent override, but the full history is always queryable. This is non-negotiable for a compliance system — the audit trail has to be real.
+
+### pgvector over a dedicated vector database
+
+Single Postgres instance for both relational data and vector search. The alternative (ChromaDB or Pinecone) would have been a second service to provision, monitor, and keep in sync with the relational data. pgvector with the same SQLAlchemy ORM keeps the stack simple. At scale, adding read replicas to Postgres handles both workloads simultaneously.
+
+### Cloudflare R2 for file storage
+
+R2 is S3-compatible (boto3 with a custom endpoint URL). The client is an S3-compatible storage adapter, and switching to AWS S3 is a single environment variable change. I chose R2 because the client already uses Cloudflare and R2 has no egress fees, which matters when reviewers are downloading receipts to verify verdicts.
 
 ---
 
-## Cost Per Submission
+## Cost per submission
 
-Approximate OpenAI API cost for a 5-receipt submission:
+Based on GPT-4o pricing (as of early 2025), for an average 6-receipt submission:
 
-| Step | Model | Tokens (est.) | Cost |
+| Step | Model | Est. tokens | Cost |
 |---|---|---|---|
-| Extraction × 5 | GPT-4o (vision) | 500 in + 200 out each | ~$0.025 |
-| Verdict × 5 | GPT-4o | 1800 in + 400 out each | ~$0.055 |
-| Embeddings × 5 | text-embedding-3-small | 50 tokens each | ~$0.000 |
-| **Total** | | | **~$0.08 / submission** |
+| Extraction × 6 | GPT-4o vision | ~800 in + 200 out each | ~$0.042 |
+| Verdict × 6 | GPT-4o | ~1500 in + 400 out each | ~$0.102 |
+| Embeddings × 6 | text-embedding-3-small | ~50 each | ~$0.001 |
+| **Total** | | | **~$0.15** |
 
-Q&A adds ~$0.01–0.02 per question depending on retrieval rounds.
+Policy embeddings are computed once at indexing time and reused across all submissions.
 
----
-
-## Scaling to 10k Submissions/Day
-
-At 10k submissions/day with an average of 4 receipts each = 40k LLM calls/day.
-
-**Bottlenecks and mitigations:**
-
-1. **LLM throughput**: GPT-4o rate limits (~10k RPM on Tier 4). Mitigation: add a job queue (Celery + Redis or Railway background workers) so receipt processing is async. The API returns immediately with `processing_status: processing` and the UI polls.
-
-2. **Database connections**: asyncpg with connection pooling (`pool_size=20`, `max_overflow=30`). pgvector similarity search with HNSW index stays sub-10ms at this scale.
-
-3. **R2 storage**: Cloudflare R2 has no egress fees and handles the object volume trivially.
-
-4. **Embedding reuse**: Policy chunks are pre-embedded and cached in pgvector. Only receipt text needs embedding at query time — ~50 tokens per embedding call.
-
-5. **Horizontal scaling**: FastAPI is stateless. Add Railway replicas behind a load balancer. Database is the only stateful component.
+At 10,000 submissions/day: ~$1,500/day in LLM costs. The main mitigation is caching verdicts for identical receipt hashes (same file content = same verdict, skip the LLM call). Repeat submissions from the same vendors could see 20–30% cache hit rates.
 
 ---
 
-## Evaluation Harness
+## Scaling to 10,000 submissions/day
 
-The harness in `eval/` runs end-to-end against a live API and scores the system on four metrics.
+The application is stateless — no data lives in memory between requests. Horizontal scaling requires no code changes.
 
-### Running
+| Layer | Now | At scale |
+|---|---|---|
+| API | Single Railway instance | Multiple FastAPI instances, load balancer |
+| Processing | Synchronous per receipt | Celery + Redis job queue, async processing |
+| Database | Railway Postgres | AWS RDS Postgres + read replicas, same schema |
+| Vector search | pgvector on same instance | pgvector on RDS, same queries, HNSW index |
+| File storage | Cloudflare R2 | AWS S3 (one env var change) |
+| LLM calls | Direct OpenAI | Add Redis cache for repeated receipt hashes |
+
+The current synchronous pipeline means the browser waits ~15 seconds per receipt during upload. At scale, the upload endpoint would return immediately with `processing_status: processing` and the UI would poll. That's a 2-hour engineering change, not an architectural rewrite.
+
+---
+
+## Evaluation harness
+
+The harness in `eval/` runs end-to-end against a live API and measures four things:
 
 ```bash
-# With backend running at localhost:8000
 python eval/harness.py \
   --input eval/expected_outcomes/sample.json \
-  --base-url http://localhost:8000
+  --base-url https://northwind-expense-ai-production.up.railway.app
 ```
 
-### Metrics
+To use the held-out test set, replace `sample.json` with your file. The input format:
 
-| Metric | Weight | Description |
+```json
+{
+  "test_cases": [
+    {
+      "type": "verdict",
+      "receipt_file": "path/to/receipt.pdf",
+      "employee": {"name": "...", "grade": "5", "...": "..."},
+      "expected_verdict": "compliant",
+      "expected_doc_ids": ["TEP-002"],
+      "description": "Dinner under cap"
+    },
+    {
+      "type": "qa",
+      "question": "What is the dinner cap?",
+      "expected_refused": false,
+      "expected_doc_ids": ["TEP-002"],
+      "description": "In-scope Q&A"
+    }
+  ]
+}
+```
+
+**Metrics and why I chose them:**
+
+| Metric | Weight | What it measures |
 |---|---|---|
-| Verdict Accuracy | 40% | Fraction of verdict cases where predicted verdict matches expected |
-| Citation Relevance | 25% | Fraction where at least one expected policy doc appears in cited_clauses |
-| Refusal Accuracy | 20% | Fraction of Q&A cases where refusal behavior matches expected |
-| Confidence Rate | 15% | Fraction of verdict cases where confidence is not LOW |
-| **Overall Score** | weighted | Weighted average of the four metrics |
+| Verdict accuracy | 40% | Did the system reach the right conclusion? Primary signal. |
+| Citation relevance | 25% | Did it find the right policy? A correct verdict citing the wrong doc is a retrieval failure. |
+| Refusal accuracy | 20% | Did out-of-scope questions get refused? A system that answers anything is dangerous. |
+| Confidence rate | 15% | How often is the system appropriately confident? LOW confidence on obvious cases signals retrieval problems. |
 
 Results are saved to `eval/results_{timestamp}.json`.
 
-### Test cases (`eval/expected_outcomes/sample.json`)
-
-| ID | Type | Description | Expected |
-|---|---|---|---|
-| v_01_denver_breakfast | verdict | Breakfast in Denver (Tier 2), within $25 cap | compliant |
-| v_02_chicago_alinea | verdict | Alinea dinner in Chicago (Tier 2), $300+ vs $75 cap | rejected |
-| v_03_austin_flight | verdict | Southwest flight to Austin, domestic air travel | compliant |
-| qa_01_dinner_cap | qa | Dinner cap with high-cost city uplift | answered (TEP-002) |
-| qa_02_international | qa | VP approval for international travel | answered (TEP-013) |
-| qa_03_out_of_scope | qa | Remote work / home office policy | refused |
-
 ---
 
-## What's Next
+## What I'd do next
 
-- **Batch upload UI**: drag-and-drop multiple receipts at once
-- **Webhook notifications**: notify manager when a submission has flagged/rejected items
-- **Policy version tracking**: re-run verdicts when a policy document is updated
-- **Per-category confidence tuning**: track which policy categories produce the most LOW confidence verdicts and improve chunk quality there
-- **Feedback loop**: allow reviewers to mark verdicts wrong; feed corrections back as few-shot examples
+**Hybrid search.** BM25 keyword matching alongside vector search would improve retrieval of specific dollar amounts and section numbers. "What is the $75 cap" is a better BM25 query than a vector query. The retrieval layer is behind an interface — swapping in a hybrid retriever is a contained change.
+
+**Async processing.** Move receipt processing to a Celery job queue. The upload endpoint returns immediately; the UI polls for status. This is the highest-priority change for production use.
+
+**Policy versioning.** When a policy PDF is updated, re-index only the changed document and flag any verdicts that relied on the old version for re-review. Currently re-indexing requires a manual truncate + restart.
+
+**Confidence calibration.** Track verdict accuracy by policy category over time. If hotel receipts consistently produce wrong verdicts, that's a signal to improve hotel-specific retrieval or add more explicit hotel policy context to the verdict prompt.
+
+**Receipt deduplication.** Hash receipt content on upload and return the cached verdict for duplicates. Reduces LLM cost and prevents double-processing of the same receipt.
