@@ -94,7 +94,7 @@ export default function PolicyQA() {
           </div>
         )}
 
-        {messages.map((msg, i) => (
+        {(messages || []).map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role === 'user' ? (
               <div className="max-w-[75%] bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm">

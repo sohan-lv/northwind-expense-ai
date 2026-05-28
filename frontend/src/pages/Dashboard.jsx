@@ -41,11 +41,12 @@ export default function Dashboard() {
     queryFn: () => submissionsApi.list(activeFilters),
   })
 
+  const submissionList = submissions || []
   const stats = {
-    total: submissions.length,
-    flagged: submissions.filter(s => s.status === 'flagged').length,
-    rejected: submissions.filter(s => s.status === 'rejected').length,
-    compliant: submissions.filter(s => s.status === 'compliant').length,
+    total: submissionList.length,
+    flagged: submissionList.filter(s => s.status === 'flagged').length,
+    rejected: submissionList.filter(s => s.status === 'rejected').length,
+    compliant: submissionList.filter(s => s.status === 'compliant').length,
   }
 
   const clearFilters = () => setFilters({ employee_id: '', status: '', date_from: '', date_to: '' })
@@ -92,7 +93,7 @@ export default function Dashboard() {
           className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[160px]"
         >
           <option value="">All employees</option>
-          {employees.map(emp => (
+          {(employees || []).map(emp => (
             <option key={emp.id} value={emp.id}>{emp.name}</option>
           ))}
         </select>
@@ -141,7 +142,7 @@ export default function Dashboard() {
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
         {isLoading ? (
           <div className="p-12 text-center text-gray-400">Loading submissions…</div>
-        ) : submissions.length === 0 ? (
+        ) : submissionList.length === 0 ? (
           <div className="p-16 text-center">
             <p className="text-4xl mb-3">📂</p>
             <p className="text-gray-600 font-medium mb-1">No submissions yet</p>
@@ -171,7 +172,7 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {submissions.map(sub => (
+              {submissionList.map(sub => (
                 <tr
                   key={sub.id}
                   onClick={() => navigate(`/submissions/${sub.id}`)}

@@ -112,7 +112,7 @@ export default function SubmissionDetail() {
         </div>
       ) : (
         <div className="space-y-4">
-          {submission.receipts.map(receipt => (
+          {(submission?.receipts || []).map(receipt => (
             <ReceiptCard key={receipt.id} receipt={receipt} submissionId={id} />
           ))}
         </div>
