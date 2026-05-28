@@ -25,32 +25,40 @@ function StatCard({ label, count, color }) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const [filters, setFilters] = useState({ employee_id: '', status: '', date_from: '', date_to: '' })
+  const [filters, setFilters] = useState({ employee_name: '', status: '', date_from: '', date_to: '' })
 
-  const { data: employees, error: empError } = useQuery({
+  const { data: employees } = useQuery({
     queryKey: ['employees'],
     queryFn: employeesApi.list,
   })
 
+  // Send only backend-supported filters (status, dates) — employee filtered client-side by name
   const activeFilters = Object.fromEntries(
-    Object.entries(filters).filter(([, v]) => v !== '')
+    Object.entries(filters)
+      .filter(([k, v]) => v !== '' && k !== 'employee_name')
   )
 
-  const { data: submissions, isLoading, refetch, error: subsError } = useQuery({
+  const { data: submissions, isLoading, refetch } = useQuery({
     queryKey: ['submissions', activeFilters],
     queryFn: () => submissionsApi.list(activeFilters),
   })
 
   const submissionList = Array.isArray(submissions) ? submissions : []
   const employeeList = Array.isArray(employees) ? employees : []
+
+  // Filter by name client-side so all UUIDs for the same person are included
+  const displayList = filters.employee_name
+    ? submissionList.filter(s => s.employee_name === filters.employee_name)
+    : submissionList
+
   const stats = {
-    total: submissionList.length,
-    flagged: submissionList.filter(s => s.status === 'flagged').length,
-    rejected: submissionList.filter(s => s.status === 'rejected').length,
-    compliant: submissionList.filter(s => s.status === 'compliant').length,
+    total: displayList.length,
+    flagged: displayList.filter(s => s.status === 'flagged').length,
+    rejected: displayList.filter(s => s.status === 'rejected').length,
+    compliant: displayList.filter(s => s.status === 'compliant').length,
   }
 
-  const clearFilters = () => setFilters({ employee_id: '', status: '', date_from: '', date_to: '' })
+  const clearFilters = () => setFilters({ employee_name: '', status: '', date_from: '', date_to: '' })
   const hasFilters = Object.values(filters).some(v => v !== '')
 
   return (
@@ -89,13 +97,13 @@ export default function Dashboard() {
       {/* Filter bar */}
       <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 mb-4 flex flex-wrap items-end gap-3 shadow-sm">
         <select
-          value={filters.employee_id}
-          onChange={e => setFilters(f => ({ ...f, employee_id: e.target.value }))}
+          value={filters.employee_name}
+          onChange={e => setFilters(f => ({ ...f, employee_name: e.target.value }))}
           className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[160px]"
         >
           <option value="">All employees</option>
           {[...new Map(employeeList.map(emp => [emp.name, emp])).values()].map(emp => (
-            <option key={emp.id} value={emp.id}>{emp.name}</option>
+            <option key={emp.id} value={emp.name}>{emp.name}</option>
           ))}
         </select>
 
@@ -143,7 +151,7 @@ export default function Dashboard() {
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
         {isLoading ? (
           <div className="p-12 text-center text-gray-400">Loading submissions…</div>
-        ) : submissionList.length === 0 ? (
+        ) : displayList.length === 0 ? (
           <div className="p-16 text-center">
             <p className="text-4xl mb-3">📂</p>
             <p className="text-gray-600 font-medium mb-1">No submissions yet</p>
@@ -173,7 +181,7 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {submissionList.map(sub => (
+              {displayList.map(sub => (
                 <tr
                   key={sub.id}
                   onClick={() => navigate(`/submissions/${sub.id}`)}
