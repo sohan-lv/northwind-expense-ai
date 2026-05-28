@@ -178,7 +178,7 @@ To use the held-out test set, replace `sample.json` with your file. The input fo
   "test_cases": [
     {
       "type": "verdict",
-      "receipt_file": "path/to/receipt.pdf",
+      "receipt_path": "path/to/receipt.pdf",
       "employee": {"name": "...", "grade": "5", "...": "..."},
       "expected_verdict": "compliant",
       "expected_doc_ids": ["TEP-002"],
