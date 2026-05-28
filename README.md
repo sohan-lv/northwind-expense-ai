@@ -8,7 +8,7 @@ An AI-powered expense pre-review system for Northwind Logistics. Finance reviewe
 
 ## What it does
 
-A reviewer opens the app, picks an employee, uploads receipts (PDF, image, or plain text), and gets back a verdict for each line item — compliant, flagged, or rejected — with the exact policy clause that supports it, quoted verbatim. They can override any verdict with a comment, and the full audit trail persists across restarts.
+A reviewer opens the app, picks an employee, uploads receipts and gets back a verdict for each line item — compliant, flagged, or rejected — with the exact policy clause that supports it, quoted verbatim. They can override any verdict with a comment, and the full audit trail persists across restarts.
 
 There's also a policy Q&A interface: ask anything about the expense policies and get a cited answer. Ask something outside the policy library and the system declines rather than guessing.
 
@@ -47,7 +47,7 @@ cd frontend && npm install && npm run dev
 - API: http://localhost:8000
 - API docs: http://localhost:8000/docs
 
-On first startup the system automatically seeds 5 employees and indexes all 30 policy documents into pgvector. Subsequent restarts skip indexing (idempotent check).
+On first startup the system automatically seeds 5 employees and indexes all policy documents into pgvector. Subsequent restarts skip indexing (idempotent check).
 
 ---
 
@@ -129,7 +129,7 @@ R2 is S3-compatible (boto3 with a custom endpoint URL). The client is an S3-comp
 
 ## Cost per submission
 
-Based on GPT-4o pricing (as of early 2025), for an average 6-receipt submission:
+Based on GPT-4o pricing, for an average 6-receipt submission:
 
 | Step | Model | Est. tokens | Cost |
 |---|---|---|---|
