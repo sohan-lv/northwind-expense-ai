@@ -1,6 +1,9 @@
 # Environment variables - never commit
 .env
 
+# Project instructions (local only)
+CLAUDE.md
+
 # Python
 __pycache__/
 *.pyc
