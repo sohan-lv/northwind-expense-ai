@@ -41,15 +41,8 @@ export default function Dashboard() {
     queryFn: () => submissionsApi.list(activeFilters),
   })
 
-  console.log('submissions data:', submissions)
-  console.log('submissions type:', typeof submissions)
-  console.log('employees data:', employees)
-  console.log('employees type:', typeof employees)
-  console.log('subsError:', subsError)
-  console.log('empError:', empError)
-
-  const submissionList = submissions || []
-  const employeeList = employees || []
+  const submissionList = Array.isArray(submissions) ? submissions : []
+  const employeeList = Array.isArray(employees) ? employees : []
   const stats = {
     total: submissionList.length,
     flagged: submissionList.filter(s => s.status === 'flagged').length,
