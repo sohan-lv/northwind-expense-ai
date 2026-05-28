@@ -94,7 +94,7 @@ export default function Dashboard() {
           className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[160px]"
         >
           <option value="">All employees</option>
-          {employeeList.map(emp => (
+          {[...new Map(employeeList.map(emp => [emp.name, emp])).values()].map(emp => (
             <option key={emp.id} value={emp.id}>{emp.name}</option>
           ))}
         </select>
