@@ -5,7 +5,7 @@ An AI-powered expense pre-review system for Northwind Logistics. Finance reviewe
 **Live demo:** https://northwind-expense-ai-production.up.railway.app
 
 <img width="1375" height="600" alt="image" src="https://github.com/user-attachments/assets/77d541f8-b900-4c8c-ae71-0dd522c31071" />
-<img width="1375" height="792" alt="image" src="https://github.com/user-attachments/assets/a17fc53c-c3b5-477a-85ad-07349c805d51" />
+<img width="1375" height="792" alt="image" src="https://github.com/user-attachments/assets/7a6327c2-4036-4316-b069-c906fd714f95" />
 
 ---
 
